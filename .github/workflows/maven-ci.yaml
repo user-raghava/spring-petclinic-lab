@@ -15,53 +15,63 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣Checkout source
-      - name: Checkout source code
+      # 1. Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup Java
-      - name: Set up JDK
+      # 2. Setup Java
+      - name: Setup JDK
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
 
-      # 3️⃣ Build + Unit Tests
+      # 3. Build & run tests
       - name: Build with Maven
         run: mvn clean verify
 
-      # 4️⃣ Upload Unit Test Results
-      - name: Upload JUnit Test Results
+      # 4. Publish JUnit test results to GitHub Checks
+      - name: Publish Test Results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Maven Unit Tests
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
+          fail-on-error: true
+
+      # 5. Upload raw test report files
+      - name: Upload JUnit XML
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: junit-test-results
           path: target/surefire-reports/
 
-      # 5️⃣ Upload Build Artifact (JAR)
-      - name: Upload Application Artifact
+      # 6. Upload built JAR
+      - name: Upload Artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: spring-petclinic-jar
           path: target/*.jar
 
-    #   # 6️⃣ Telegram Notification – Test Result
-    #   - name: Notify Telegram (Test Result)
+    #   # 7. Telegram notification for test result
+    #   - name: Notify Telegram - Test Status
     #     if: always()
     #     run: |
     #       STATUS="${{ job.status }}"
-    #       MESSAGE="🧪 Spring PetClinic CI\nTests Status: ${STATUS}\nRepo: ${{ github.repository }}\nRun: ${{ github.run_id }}"
+    #       MESSAGE="🧪 Spring PetClinic CI\nTest Status: ${STATUS}\nRepo: ${{ github.repository }}\nRun: ${{ github.run_id }}"
     #       curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
     #         -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
     #         -d text="$MESSAGE"
 
-    #   # 7️⃣ Telegram Notification – Artifact Uploaded
-    #   - name: Notify Telegram (Artifact Uploaded)
+    #   # 8. Telegram notification for artifact upload
+    #   - name: Notify Telegram - Artifact Uploaded
     #     if: success()
     #     run: |
-    #       MESSAGE="📦 Artifact Uploaded Successfully\nRepo: ${{ github.repository }}\nWorkflow: ${{ github.workflow }}"
+    #       MESSAGE="📦 Artifact uploaded successfully\nRepo: ${{ github.repository }}"
     #       curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
     #         -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
     #         -d text="$MESSAGE"
