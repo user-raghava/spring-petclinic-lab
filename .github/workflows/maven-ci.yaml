@@ -1,0 +1,67 @@
+name: Maven CI - Spring PetClinic
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣Checkout source
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Java
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # 3️⃣ Build + Unit Tests
+      - name: Build with Maven
+        run: mvn clean verify
+
+      # 4️⃣ Upload Unit Test Results
+      - name: Upload JUnit Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-test-results
+          path: target/surefire-reports/
+
+      # 5️⃣ Upload Build Artifact (JAR)
+      - name: Upload Application Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spring-petclinic-jar
+          path: target/*.jar
+
+    #   # 6️⃣ Telegram Notification – Test Result
+    #   - name: Notify Telegram (Test Result)
+    #     if: always()
+    #     run: |
+    #       STATUS="${{ job.status }}"
+    #       MESSAGE="🧪 Spring PetClinic CI\nTests Status: ${STATUS}\nRepo: ${{ github.repository }}\nRun: ${{ github.run_id }}"
+    #       curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+    #         -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+    #         -d text="$MESSAGE"
+
+    #   # 7️⃣ Telegram Notification – Artifact Uploaded
+    #   - name: Notify Telegram (Artifact Uploaded)
+    #     if: success()
+    #     run: |
+    #       MESSAGE="📦 Artifact Uploaded Successfully\nRepo: ${{ github.repository }}\nWorkflow: ${{ github.workflow }}"
+    #       curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+    #         -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+    #         -d text="$MESSAGE"
