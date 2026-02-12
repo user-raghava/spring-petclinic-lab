@@ -13,12 +13,13 @@ permissions:
 jobs:
   build-test:
     name: Build & Test (Java ${{ matrix.java }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     # Run all matrix combinations even if one fails
     strategy:
       fail-fast: false
       matrix: 
         java: [17, 21]
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       # 1️⃣ Checkout source
