@@ -1,4 +1,4 @@
-name: Maven code-analysis - Spring PetClinic
+name: Maven code-analysis-Spring PetClinic
 
 on:
   push:
