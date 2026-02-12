@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-test:
-    name: Build & Test (Java ${{ matrix.java }})
+    name: Build & Test (Java ${{ matrix.java }}-${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     # Run all matrix combinations even if one fails
     strategy:
