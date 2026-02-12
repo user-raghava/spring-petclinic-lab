@@ -43,7 +43,7 @@ jobs:
         if: always()
         uses: dorny/test-reporter@v1
         with:
-          name: Maven Tests (Java ${{ matrix.java }})
+          name: Maven Tests (Java ${{ matrix.java }} ${{ matrix.os}})
           path: target/surefire-reports/*.xml
           reporter: java-junit
           fail-on-error: true
@@ -53,7 +53,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: junit-reports-java-${{ matrix.java }}
+          name: junit-reports-java-${{ matrix.java }}-${{ matrix.os }}
           path: target/surefire-reports/
 
       # 6️⃣ Upload built JAR artifact (only once from Java 17)
