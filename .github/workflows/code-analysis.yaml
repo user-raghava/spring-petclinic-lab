@@ -5,7 +5,6 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  # Allow manual trigger from GitHub UI
   workflow_dispatch:
 
 permissions:
@@ -18,10 +17,10 @@ jobs:
   build-test:
     name: Build & Test (Java ${{ matrix.java }})
     runs-on: ubuntu-latest
-    # Run all matrix combinations even if one fails
+
     strategy:
       fail-fast: false
-      matrix: 
+      matrix:
         java: [17, 21]
 
     steps:
@@ -37,11 +36,18 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
 
-      # 3️⃣ Build and run unit tests
+      # 3️⃣ Initialize CodeQL (run only once for Java 17)
+      - name: Initialize CodeQL
+        if: matrix.java == '17'
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+
+      # 4️⃣ Build and run unit tests
       - name: Build with Maven
         run: mvn -B clean verify
 
-      # 4️⃣ Publish JUnit test results to GitHub Checks
+      # 5️⃣ Publish JUnit test results
       - name: Publish Test Results
         if: always()
         uses: dorny/test-reporter@v1
@@ -51,7 +57,7 @@ jobs:
           reporter: java-junit
           fail-on-error: true
 
-      # 5️⃣ Upload raw JUnit XML reports
+      # 6️⃣ Upload raw JUnit XML reports
       - name: Upload JUnit Reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -59,7 +65,12 @@ jobs:
           name: junit-reports-java-${{ matrix.java }}
           path: target/surefire-reports/
 
-      # 6️⃣ Upload built JAR artifact (only once from Java 17)
+      # 7️⃣ Perform CodeQL analysis (only once)
+      - name: Perform CodeQL Analysis
+        if: matrix.java == '17'
+        uses: github/codeql-action/analyze@v3
+
+      # 8️⃣ Upload built JAR artifact (only once from Java 17)
       - name: Upload Application Artifact
         if: success() && matrix.java == '17'
         uses: actions/upload-artifact@v4
