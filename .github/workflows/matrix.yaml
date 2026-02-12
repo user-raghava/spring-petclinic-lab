@@ -1,0 +1,83 @@
+name: Maven Matrix CI - Spring PetClinic
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  build-test:
+    name: Build & Test (Java ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    # Run all matrix combinations even if one fails
+    strategy:
+      fail-fast: false
+      matrix: 
+        java: [17, 21]
+
+    steps:
+      # 1️⃣ Checkout source
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Java + Maven cache
+      - name: Setup JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      # 3️⃣ Build and run unit tests
+      - name: Build with Maven
+        run: mvn -B clean verify
+
+      # 4️⃣ Publish JUnit test results to GitHub Checks
+      - name: Publish Test Results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Maven Tests (Java ${{ matrix.java }})
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
+          fail-on-error: true
+
+      # 5️⃣ Upload raw JUnit XML reports
+      - name: Upload JUnit Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-reports-java-${{ matrix.java }}
+          path: target/surefire-reports/
+
+      # 6️⃣ Upload built JAR artifact (only once from Java 17)
+      - name: Upload Application Artifact
+        if: success() && matrix.java == '17'
+        uses: actions/upload-artifact@v4
+        with:
+          name: spring-petclinic-jar
+          path: target/*.jar
+
+    #   # 7️⃣ Telegram notification for test result
+    #   - name: Notify Telegram - Test Status
+    #     if: always() && matrix.java == '17'
+    #     run: |
+    #       STATUS="${{ job.status }}"
+    #       MESSAGE="🧪 Spring PetClinic CI\nJava: ${{ matrix.java }}\nTest Status: ${STATUS}\nRepo: ${{ github.repository }}\nRun: ${{ github.run_id }}"
+    #       curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+    #         -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+    #         -d text="$MESSAGE"
+
+    #   # 8️⃣ Telegram notification when artifact uploaded
+    #   - name: Notify Telegram - Artifact Uploaded
+    #     if: success() && matrix.java == '17'
+    #     run: |
+    #       MESSAGE="📦 Spring PetClinic artifact uploaded successfully\nJava: ${{ matrix.java }}\nRepo: ${{ github.repository }}"
+    #       curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+    #         -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+    #         -d text="$MESSAGE"
