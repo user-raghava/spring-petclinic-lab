@@ -28,7 +28,6 @@ jobs:
           java-version: "17"
 
       - name: Initialize CodeQL
-        if: matrix.java == '17'
         uses: github/codeql-action/init@v3
         with:
           languages: java
@@ -39,5 +38,4 @@ jobs:
           artifact-name: spring-petclinic-jar
 
       - name: Perform CodeQL Analysis
-        if: matrix.java == '17'
         uses: github/codeql-action/analyze@v3
