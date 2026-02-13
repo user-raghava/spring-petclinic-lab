@@ -1,0 +1,15 @@
+name: Project resuable-workflow
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  call-maven-ci:
+    uses: user-raghava/reuseable-repo/.github/workflows/ci-template.yml@v1
+    with:
+      java-version: "17"
+      artifact-name: "spring-petclinic-jar"
