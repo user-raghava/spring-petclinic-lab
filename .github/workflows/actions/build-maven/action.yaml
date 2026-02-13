@@ -1,0 +1,42 @@
+name: "Build Maven Project"
+description: "Compile, test, publish reports, and upload artifacts"
+
+inputs:
+  artifact-name:
+    description: "Name of the uploaded JAR artifact"
+    required: false
+    default: "app-jar"
+
+runs:
+  using: "composite"
+  steps:
+    # 1. Build & run tests
+    - name: Build with Maven
+      run: mvn clean verify
+      shell: bash
+
+    # 2. Publish JUnit test results to GitHub Checks
+    - name: Publish Test Results
+      if: always()
+      uses: dorny/test-reporter@v1
+      with:
+        name: Maven Unit Tests
+        path: target/surefire-reports/*.xml
+        reporter: java-junit
+        fail-on-error: true
+
+    # 3. Upload raw test report files
+    - name: Upload JUnit XML
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: junit-test-results
+        path: target/surefire-reports/
+    
+    # 6. Upload built JAR artifact
+    - name: Upload built JAR
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: target/*.jar

@@ -1,0 +1,42 @@
+name: Maven CI - Composite Action Workflow
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: ./.github/actions/setup-java
+        with:
+          java-version: "17"
+
+      - name: Initialize CodeQL
+        if: matrix.java == '17'
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+
+      - name: Build Maven Project
+        uses: ./.github/actions/build-maven
+        with:
+          artifact-name: spring-petclinic-jar
+
+      - name: Perform CodeQL Analysis
+        if: matrix.java == '17'
+        uses: github/codeql-action/analyze@v3
