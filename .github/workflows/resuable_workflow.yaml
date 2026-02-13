@@ -18,4 +18,4 @@ jobs:
     with:
       java-version: "17"
       artifact-name: "spring-petclinic-jar"
-      agent: "ubutnu-latest"
+      agent: "ubuntu-latest"
