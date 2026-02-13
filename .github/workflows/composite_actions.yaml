@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java
-        uses: ./.github/actions/setup-java
+        uses: ./.github/actions/setup-java/action.yaml
         with:
           java-version: "17"
 
@@ -34,7 +34,7 @@ jobs:
           languages: java
 
       - name: Build Maven Project
-        uses: ./.github/actions/build-maven
+        uses: ./.github/actions/build-maven/action.yaml
         with:
           artifact-name: spring-petclinic-jar
 
