@@ -58,3 +58,4 @@ jobs:
             -Dspring-boot.build-image.imageName=ghcr.io/${{ github.repository_owner }}/spring-petclinic-lab \
             -Dspring-boot.build-image.publish=true \
             --no-transfer-progress
+            
