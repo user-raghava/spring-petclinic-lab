@@ -1,4 +1,14 @@
-name: CI/CD Pipeline - Spring PetClinic
+name: CI/CD Pipeline - Spring PetClinic with Kind Cluster
+
+# ===================================================================
+# This workflow runs on every push and pull request.
+# It includes:
+#   1. Build + Tests
+#   2. Security scanning with CodeQL
+#   3. Docker image build & push to GHCR
+#   4. Create a real Kubernetes cluster (Kind) inside GitHub Runner
+#      and deploy the full application (PetClinic + PostgreSQL)
+# ===================================================================
 
 on:
   push:
@@ -7,12 +17,58 @@ on:
     branches: [ main, master ]
 
 jobs:
+
+  # ===================================================================
+  # JOB 1: Build & Run Tests
+  # ===================================================================
   build-and-test:
-    name: Build & Test
+    name: Build & Run Tests
     runs-on: ubuntu-latest
+    # This job compiles the code, runs unit tests, integration tests,
+    # and packages the application.
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
+        # Step: Pull the latest code from the repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        # Step: Install Java 17 (required for Spring Boot)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Maven Tests & Build
+        # Step: Clean, compile, run all tests (unit + integration), and package the app
+        run: ./mvnw clean verify -B --no-transfer-progress
+
+      - name: Upload JUnit Test Reports
+        # Step: Save test reports as artifact so you can download them later
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-test-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+  # ===================================================================
+  # JOB 2: CodeQL Security Analysis
+  # ===================================================================
+  codeql-analysis:
+    name: CodeQL Security Scan
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    # This job scans the Java code for security vulnerabilities using GitHub's CodeQL.
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        # Step: Get the source code for scanning
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -22,30 +78,50 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build and Run Tests
-        run: ./mvnw clean verify -B --no-transfer-progress
+      - name: Initialize CodeQL
+        # Step: Set up CodeQL engine for Java language
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+          queries: security-extended
+          build-mode: manual          # Important: We are building manually
 
+      - name: Run Maven Build (Important for CodeQL)
+        # This step ensures CodeQL has compiled classes to analyze
+        run: ./mvnw clean compile -B --no-transfer-progress
+
+      - name: Perform CodeQL Analysis
+        # Step: Run the actual security scan and upload results to GitHub
+        uses: github/codeql-action/analyze@v3
+
+  # ===================================================================
+  # JOB 3: Build & Push Docker Image
+  # ===================================================================
   build-and-push-image:
     name: Build & Push Docker Image
-    needs: build-and-test
+    needs: [build-and-test, codeql-analysis]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-
+    # This job only runs when code is merged to main branch.
+    # It builds the Docker image using Spring Boot Buildpacks and pushes it to GHCR.
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
+        # Step: Pull the latest code
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
+        # Step: Install Java (needed for Maven build-image goal)
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
       - name: Login to GitHub Container Registry
+        # Step: Authenticate to ghcr.io so we can push the image
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -53,9 +129,83 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Push Docker Image
+        # Step: Build OCI image using Spring Boot's buildpacks and push to GHCR
         run: |
           ./mvnw spring-boot:build-image \
             -Dspring-boot.build-image.imageName=ghcr.io/${{ github.repository_owner }}/spring-petclinic-lab \
             -Dspring-boot.build-image.publish=true \
             --no-transfer-progress
-            
+
+  # ===================================================================
+  # JOB 4: Deploy to Kind Kubernetes Cluster
+  # ===================================================================
+  deploy-to-kind:
+    name: Deploy to Kind Kubernetes Cluster
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    # This job creates a real Kubernetes cluster inside the GitHub runner using Kind,
+    # then deploys PostgreSQL + Spring PetClinic application.
+
+    steps:
+      - name: Checkout Code
+        # Step: Get the Kubernetes manifests from the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Kind Cluster
+        # Step: Install and start a local Kubernetes cluster (Kind) on the runner
+        uses: helm/kind-action@v1
+        with:
+          version: v0.26.0
+          cluster_name: petclinic-cluster
+
+      - name: Set up kubectl
+        # Step: Install kubectl CLI tool
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Create Namespace
+        # Step: Create the namespace where the application will run
+        run: kubectl apply -f k8s/namespace.yaml
+
+      - name: Login to GHCR from Kind Cluster
+        # Step: Create Kubernetes secret so the cluster can pull the private image from GHCR
+        run: |
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            -n spring-petclinic --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy PostgreSQL
+        # Step: Deploy PostgreSQL database (with credentials)
+        run: kubectl apply -f k8s/postgres-db.yaml
+
+      - name: Update Image in Deployment
+        # Step: Update the deployment.yaml with the latest pushed Docker image
+        run: |
+          sed -i 's|image:.*|image: ghcr.io/${{ github.repository_owner }}/spring-petclinic-lab:latest|g' \
+            k8s/petclinic-deployment.yaml
+
+      - name: Deploy PetClinic Application
+        # Step: Deploy the Spring Boot application and its service
+        run: |
+          kubectl apply -f k8s/petclinic-deployment.yaml
+          kubectl apply -f k8s/petclinic-service.yaml
+
+      - name: Wait for Deployment Ready
+        # Step: Wait until the application pods are fully running
+        run: |
+          kubectl rollout status deployment/petclinic -n spring-petclinic --timeout=180s
+          echo "✅ PetClinic application deployed successfully!"
+
+      - name: Show Cluster Status
+        # Step: Print final status (pods and services) for easy debugging
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n spring-petclinic
+          echo "=== Services ==="
+          kubectl get svc -n spring-petclinic
+          echo "=== Access URL ==="
+          echo "http://localhost:$(kubectl get svc petclinic -n spring-petclinic -o jsonpath='{.spec.ports[0].nodePort}')"
