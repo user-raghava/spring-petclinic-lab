@@ -35,17 +35,29 @@ spec:
                   name: petclinic-db-credentials
                   key: password
           livenessProbe:
-            httpGet:
-              path: /actuator/health/liveness
-              port: 8080
-            initialDelaySeconds: 30
-            periodSeconds: 10
+              httpGet:
+                path: /actuator/health/liveness
+                port: 8080
+              initialDelaySeconds: 60     # was probably 30 or less
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 6
           readinessProbe:
-            httpGet:
-              path: /actuator/health/readiness
-              port: 8080
-            initialDelaySeconds: 20
-            periodSeconds: 5
+              httpGet:
+                path: /actuator/health/readiness
+                port: 8080
+              initialDelaySeconds: 45     # give more time to connect to Postgres
+              periodSeconds: 5
+              timeoutSeconds: 3
+              failureThreshold: 6
+          startupProbe:                 # Add this - very helpful for Spring Boot
+              httpGet:
+                path: /actuator/health/liveness
+                port: 8080
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              failureThreshold: 30        # allow up to 5 minutes for startup
+          
           resources:
             requests:
               memory: "512Mi"
