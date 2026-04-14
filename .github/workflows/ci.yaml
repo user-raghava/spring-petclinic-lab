@@ -88,7 +88,7 @@ jobs:
   # JOB 3: Build & Push Docker Image
   # ===================================================================
   build-and-push-image:
-    name: Build & Push Docker Image
+    name: Build and push to GHCR(GitHub Container Registry)
     needs: [build-and-test, codeql-analysis]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
@@ -118,17 +118,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set Version
+        id: version
+        run: | # Use Git Tag (Recommended)
+          VERSION=$(git describe --tags --always | sed 's/^v//')
+          echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+
+      # Step: Build OCI image using Spring Boot's buildpacks and push to GHCR
       - name: Build and Push Docker Image
-        # Step: Build OCI image using Spring Boot's buildpacks and push to GHCR
-        run: |
-          ./mvnw spring-boot:build-image \
-            -Dspring-boot.build-image.imageName=ghcr.io/${{ github.repository_owner }}/spring-petclinic-lab \
-            -Dspring-boot.build-image.publish=true \
-            --no-transfer-progress
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
 
       - name: Update Kubernetes manifest with new image tag
         run: |
-          IMAGE="ghcr.io/${{ github.repository }}:${{ github.sha }}"
+          IMAGE="ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}"
           sed -i "s|image: .*|image: $IMAGE|g" k8s/petclinic-deployment.yaml
       
       - name: Commit & push updated manifest
@@ -136,5 +144,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add k8s/*.yaml
-          git commit -m "chore: update image to ${{ github.sha }}" || echo "No changes to commit"
+          git commit -m "chore: update image to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
           git push
