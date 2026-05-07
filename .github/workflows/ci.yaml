@@ -67,7 +67,7 @@ jobs:
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
-        with:
+        with: 
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
@@ -137,7 +137,8 @@ jobs:
           echo "image_tag=v${VERSION}"       >> "$GITHUB_OUTPUT"
           REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "image_name=ghcr.io/${REPO_LC}" >> "$GITHUB_OUTPUT"
- 
+          
+      # Build OCI image using Spring Boot Buildpacks + push to ghcr.io
       - name: Build and Push Docker Image
         run: |
           IMAGE="${{ steps.version.outputs.image_name }}:${{ steps.version.outputs.image_tag }}"
@@ -151,3 +152,15 @@ jobs:
           docker tag "${IMAGE}" "${LATEST}"
           docker push "${IMAGE}"
           docker push "${LATEST}"
+
+      - name: Update Image Tag in Deployment
+        run: |
+          sed -i "s|image: ghcr.io/user-raghava/spring-petclinic-lab:.*|image: ${{ steps.version.outputs.image_name }}:${{ steps.version.outputs.image_tag }}|g" \
+            k8s/petclinic-deployment.yaml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add k8s/petclinic-deployment.yaml
+          git commit -m "chore: update image to v${{ steps.version.outputs.version }} [skip ci]" || echo "Update image tag"
+          git push
