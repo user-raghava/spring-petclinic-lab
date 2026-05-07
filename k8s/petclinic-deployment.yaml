@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: petclinic
-          image: ghcr.io/user-raghava/spring-petclinic-lab:latest
+          image: ghcr.io/user-raghava/spring-petclinic-lab:v20260507-125817
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
